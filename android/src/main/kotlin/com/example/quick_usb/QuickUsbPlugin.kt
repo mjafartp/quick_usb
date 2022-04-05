@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.*
+import android.os.Build
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
@@ -142,8 +143,9 @@ class QuickUsbPlugin : FlutterPlugin, MethodCallHandler {
           device.findEndpoint(endpointMap["endpointNumber"] as Int, endpointMap["direction"] as Int)
         val timeout = call.argument<Int>("timeout")!!
 
-        // TODO Check [UsbDeviceConnection.bulkTransfer] API >= 28
-        require(maxLength <= UsbRequest__MAX_USBFS_BUFFER_SIZE) { "Before 28, a value larger than 16384 bytes would be truncated down to 16384" }
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.O_MR1) {
+          require(maxLength <= UsbRequest__MAX_USBFS_BUFFER_SIZE) { "Before 28, a value larger than 16384 bytes would be truncated down to 16384" }
+        }
         val buffer = ByteArray(maxLength)
         val actualLength = connection.bulkTransfer(endpoint, buffer, buffer.count(), timeout)
         if (actualLength < 0) {
@@ -165,10 +167,12 @@ class QuickUsbPlugin : FlutterPlugin, MethodCallHandler {
         val endpoint =
           device.findEndpoint(endpointMap["endpointNumber"] as Int, endpointMap["direction"] as Int)
 
-        // TODO Check [UsbDeviceConnection.bulkTransfer] API >= 28
-        val dataSplit = data.asList()
-          .windowed(UsbRequest__MAX_USBFS_BUFFER_SIZE, UsbRequest__MAX_USBFS_BUFFER_SIZE, true)
-          .map { it.toByteArray() }
+        var dataSplit = data.asList().map { data.asList().toByteArray() }
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.O_MR1) {
+           dataSplit = data.asList()
+            .windowed(UsbRequest__MAX_USBFS_BUFFER_SIZE, UsbRequest__MAX_USBFS_BUFFER_SIZE, true)
+            .map { it.toByteArray() }
+        }
         var sum: Int? = null
         for (bytes in dataSplit) {
           val actualLength = connection.bulkTransfer(endpoint, bytes, bytes.count(), timeout)
